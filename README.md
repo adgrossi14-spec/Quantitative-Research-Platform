@@ -6,6 +6,8 @@ with a transparent technical + sentiment model, and suggests trades — all on
 
 > ⚠️ Not financial advice. No tool can reliably predict prices. This is for
 > learning and disciplined decision-making, not guaranteed profit.
+>
+> Demo Video:https://youtu.be/hsJSnpSSyjA
 
 ## What it does
 - **Downloads** daily price history per ticker (Yahoo Finance via `yfinance`) and caches it.
