@@ -1,0 +1,32 @@
+# ---- Python virtual environment (machine-specific, huge) ----
+.venv/
+venv/
+env/
+
+# ---- Python caches / build ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# ---- Runtime state (personal paper-trading account) ----
+state/
+
+# ---- Downloaded / generated data caches (re-fetched on run) ----
+data/*.csv
+data/_*.json
+data/_*.txt
+# ...but keep the manual-CSV folder placeholder so the app knows where to look:
+!data/manual_csvs/
+data/manual_csvs/*
+!data/manual_csvs/.gitkeep
+
+# ---- Streamlit local secrets (in case you add one later) ----
+.streamlit/secrets.toml
+
+# ---- OS / editor cruft ----
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

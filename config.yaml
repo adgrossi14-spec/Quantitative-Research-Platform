@@ -1,0 +1,63 @@
+# ============================================================
+# Stock Forecaster configuration — edit this file to tune things
+# ============================================================
+
+# Tickers to scan. Add as many as you like.
+watchlist:
+  - AAPL    # Apple
+  - MSFT    # Microsoft
+  - NVDA    # Nvidia
+  - AMZN    # Amazon
+  - GOOGL   # Alphabet (Google)
+  - META    # Meta Platforms
+  - TSLA    # Tesla
+  - SPY     # S&P 500 ETF (market benchmark)
+
+# paper = fake money (safe). live mode is intentionally NOT implemented yet.
+mode: paper
+
+# Major index ETFs shown in the Market tab for overall context (auto-downloaded daily).
+market:
+  indices:
+    - SPY    # S&P 500 (large caps)
+    - QQQ    # Nasdaq 100 (tech-heavy)
+    - DIA    # Dow Jones Industrial Average
+    - IWM    # Russell 2000 (small caps)
+
+data:
+  lookback_days: 365            # how much history to download per ticker
+  auto_download: true           # download missing tickers automatically (yfinance)
+  manual_csv_dir: data/manual_csvs   # drop your own files here, named TICKER.csv
+  cache_dir: data               # downloaded CSVs are cached here (refreshed daily)
+
+news:
+  provider: rss                 # rss (free, no key) | finnhub (needs api key)
+  max_articles: 15
+  finnhub_api_key: ""           # paste your Finnhub key here when you switch
+
+sentiment:
+  provider: vader               # vader (free, offline) | claude (needs API key + $)
+
+paper:
+  starting_cash: 100000
+  max_position_pct: 0.15        # never put more than 15% of equity in one name
+  state_file: state/paper_account.json
+
+screener:
+  history_period: 6mo     # how much price history to pull per name (enough for the signals)
+  chunk_size: 120         # tickers per bulk download request
+  max_tickers: 0          # 0 = scan the whole universe; set e.g. 1500 to cap for speed
+  exclude_etfs: true      # screener = stocks only (ETFs live in the Market tab)
+
+signals:
+  rsi_period: 14
+  sma_fast: 10    # Swing style: ~2-3 month holds, ~11 signals/yr (see README "Tuning")
+  sma_slow: 30
+  # How much each sub-signal counts toward the final score (should sum to 1.0)
+  weights:
+    trend: 0.35
+    momentum: 0.25
+    rsi: 0.20
+    sentiment: 0.20
+  buy_threshold: 25             # score >= this  -> BUY suggestion
+  sell_threshold: -25           # score <= this  -> SELL suggestion
