@@ -4,25 +4,23 @@
 
 # Tickers to scan. Add as many as you like.
 watchlist:
-  - AAPL    # Apple
-  - MSFT    # Microsoft
-  - NVDA    # Nvidia
-  - AMZN    # Amazon
-  - GOOGL   # Alphabet (Google)
-  - META    # Meta Platforms
-  - TSLA    # Tesla
-  - SPY     # S&P 500 ETF (market benchmark)
-
-# paper = fake money (safe). live mode is intentionally NOT implemented yet.
+- AAPL
+- MSFT
+- NVDA
+- AMZN
+- GOOGL
+- META
+- TSLA
+- SPY
 mode: paper
 
 # Major index ETFs shown in the Market tab for overall context (auto-downloaded daily).
 market:
   indices:
-    - SPY    # S&P 500 (large caps)
-    - QQQ    # Nasdaq 100 (tech-heavy)
-    - DIA    # Dow Jones Industrial Average
-    - IWM    # Russell 2000 (small caps)
+  - SPY      # S&P 500 (large caps)
+  - QQQ      # Nasdaq 100 (tech-heavy)
+  - DIA      # Dow Jones Industrial Average
+  - IWM      # Russell 2000 (small caps)
 
 data:
   lookback_days: 365            # how much history to download per ticker
@@ -55,9 +53,9 @@ signals:
   sma_slow: 30
   # How much each sub-signal counts toward the final score (should sum to 1.0)
   weights:
-    trend: 0.35
-    momentum: 0.25
-    rsi: 0.20
-    sentiment: 0.20
+    trend: 0.0
+    momentum: 0.0
+    rsi: 0.0
+    sentiment: 1.0
   buy_threshold: 25             # score >= this  -> BUY suggestion
   sell_threshold: -25           # score <= this  -> SELL suggestion

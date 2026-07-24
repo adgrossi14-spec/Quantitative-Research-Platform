@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pandas as pd
 import streamlit as st
 
-from src.config import load_config
+from src.config import load_config, save_config
 from src.data import load_prices
 from src.news import fetch_news
 from src.sentiment import score_headlines
@@ -66,6 +66,22 @@ def latest_price(ticker: str) -> float | None:
 def get_market() -> tuple:
     """Market overview + normalized comparison frame. Cached 15 min."""
     return market_overview(cfg), normalized_frame(cfg)
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def ticker_options() -> list[str]:
+    """Sorted list of selectable tickers for the manual-buy search box.
+
+    Uses the broad US universe (same source as the screener), plus the
+    watchlist and index ETFs so names like SPY are always selectable.
+    Cached for a day; falls back to the watchlist if the universe is unavailable.
+    """
+    try:
+        uni = get_universe(cfg)
+    except Exception:
+        uni = []
+    extra = list(cfg.get("watchlist", [])) + list((cfg.get("market") or {}).get("indices", []))
+    return sorted({t.upper() for t in (uni + extra) if t})
 
 
 # --- Always-visible market snapshot banner (today's move per index) ---
@@ -281,6 +297,75 @@ with tab_port:
     else:
         st.write("No trades yet.")
 
+    # ---- Manual trade: buy/sell any ticker regardless of the signal ----
+    st.divider()
+    st.subheader("🛒 Manual trade")
+    st.caption(
+        "Buy or sell any ticker at its latest price, regardless of the model's suggestion. "
+        "The current score is shown for context — it does not restrict the trade."
+    )
+
+    def _score_line(ticker: str, price: float | None = None):
+        """Show '<icon> TICKER: score X (ACTION) · $price', falling back gracefully."""
+        try:
+            res = analyze(ticker)["res"]
+            icon = ACTION_ICON[res["action"]]
+            st.caption(f"{icon} {ticker}: score **{res['score']}** ({res['action']}) · ${res['price']:,.2f}")
+            return res["price"]
+        except Exception:
+            if price is not None:
+                st.caption(f"{ticker}: ${price:,.2f}  (score unavailable)")
+            return price
+
+    buy_col, sell_col = st.columns(2)
+
+    with buy_col:
+        st.markdown("**Buy**")
+        b_ticker = st.selectbox(
+            "Ticker (type to search)",
+            options=ticker_options(),
+            index=None,
+            placeholder="Start typing a ticker…",
+            key="manual_buy_ticker",
+        )
+        b_shares = st.number_input("Shares", min_value=1, value=1, step=1, key="manual_buy_shares")
+        if b_ticker:
+            b_price = _score_line(b_ticker)
+            if b_price:
+                st.caption(f"Estimated cost: **${b_shares * b_price:,.2f}**  ·  cash available ${acct.cash:,.2f}")
+                if st.button(f"Execute paper BUY {b_ticker}", key="manual_buy_btn", type="primary"):
+                    try:
+                        sc = analyze(b_ticker)["res"]["score"]
+                    except Exception:
+                        sc = "n/a"
+                    out = acct.buy(b_ticker, b_price, int(b_shares), note=f"manual · score {sc}")
+                    (st.success if out["ok"] else st.warning)(out["msg"])
+                    if out["ok"]:
+                        st.rerun()
+            else:
+                st.warning(f"Couldn't get a price for '{b_ticker}' — check the symbol.")
+
+    with sell_col:
+        st.markdown("**Sell**")
+        if acct.positions:
+            s_ticker = st.selectbox("Position", sorted(acct.positions.keys()), key="manual_sell_ticker")
+            held = int(acct.positions[s_ticker]["shares"])
+            s_shares = st.number_input(
+                "Shares to sell", min_value=1, max_value=held, value=held, step=1, key="manual_sell_shares"
+            )
+            s_price = _score_line(s_ticker, latest_price(s_ticker))
+            if s_price:
+                st.caption(f"Estimated proceeds: **${s_shares * s_price:,.2f}**  ·  you hold {held} shares")
+                if st.button(f"Execute paper SELL {s_ticker}", key="manual_sell_btn"):
+                    out = acct.sell(s_ticker, s_price, int(s_shares), note="manual")
+                    (st.success if out["ok"] else st.warning)(out["msg"])
+                    if out["ok"]:
+                        st.rerun()
+            else:
+                st.warning(f"Couldn't get a price for {s_ticker}.")
+        else:
+            st.info("No open positions to sell yet.")
+
     st.divider()
     if st.button("⚠️ Reset paper account to starting cash"):
         acct.reset()
@@ -308,11 +393,95 @@ with tab_bt:
 
 # ----------------------------------------------------------------- Settings
 with tab_set:
-    st.markdown(f"**Mode:** `{cfg.get('mode', 'paper')}`")
+    st.subheader("⚙️ Settings")
+    st.caption(
+        "Adjust these and click **Save** — changes are written back to `config.yaml` "
+        "(your comments are preserved) and cached data is refreshed so they take effect right away."
+    )
+
+    s = cfg["signals"]
+    w = s["weights"]
+    with st.form("settings_form"):
+        st.markdown("**Watchlist** — tickers scanned on the Suggestions tab")
+        f_watch = st.text_input(
+            "Watchlist (comma-separated)", ", ".join(cfg.get("watchlist", []))
+        )
+
+        st.markdown("**Paper account**")
+        pc1, pc2 = st.columns(2)
+        f_cash = pc1.number_input(
+            "Starting cash ($)", min_value=1000, step=1000, value=int(cfg["paper"]["starting_cash"])
+        )
+        f_maxpos = pc2.slider(
+            "Max position size (% of equity)", 1, 100, int(cfg["paper"].get("max_position_pct", 0.15) * 100)
+        )
+
+        st.markdown("**Signal windows**")
+        sc1, sc2, sc3 = st.columns(3)
+        f_fast = sc1.number_input("SMA fast (days)", min_value=2, value=int(s["sma_fast"]))
+        f_slow = sc2.number_input("SMA slow (days)", min_value=3, value=int(s["sma_slow"]))
+        f_rsi = sc3.number_input("RSI period (days)", min_value=2, value=int(s["rsi_period"]))
+
+        st.markdown("**Signal weights** — how much each sub-score counts (ideally sum to 1.0)")
+        wc1, wc2, wc3, wc4 = st.columns(4)
+        f_wt = wc1.number_input("Trend", min_value=0.0, max_value=1.0, step=0.05, value=float(w["trend"]))
+        f_wm = wc2.number_input("Momentum", min_value=0.0, max_value=1.0, step=0.05, value=float(w["momentum"]))
+        f_wr = wc3.number_input("RSI", min_value=0.0, max_value=1.0, step=0.05, value=float(w["rsi"]))
+        f_ws = wc4.number_input("Sentiment", min_value=0.0, max_value=1.0, step=0.05, value=float(w["sentiment"]))
+
+        st.markdown("**Decision thresholds** — how decisive a score must be (−100…+100)")
+        tc1, tc2 = st.columns(2)
+        f_buy = tc1.slider("Buy when score ≥", 0, 100, int(s["buy_threshold"]))
+        f_sell = tc2.slider("Sell when score ≤", -100, 0, int(s["sell_threshold"]))
+
+        st.markdown("**Data & news**")
+        dc1, dc2, dc3 = st.columns(3)
+        f_lookback = dc1.number_input(
+            "Price history (days)", min_value=60, step=30, value=int(cfg["data"].get("lookback_days", 365))
+        )
+        f_maxart = dc2.number_input(
+            "Max news articles", min_value=1, value=int(cfg["news"].get("max_articles", 15))
+        )
+        f_maxtick = dc3.number_input(
+            "Screener max tickers (0 = all)", min_value=0, value=int((cfg.get("screener") or {}).get("max_tickers", 0))
+        )
+        f_auto = st.checkbox("Auto-download missing price data (yfinance)", value=bool(cfg["data"].get("auto_download", True)))
+
+        submitted = st.form_submit_button("💾 Save settings", type="primary")
+
+    if submitted:
+        new_watch = [t.strip().upper() for t in f_watch.split(",") if t.strip()]
+        wsum = f_wt + f_wm + f_wr + f_ws
+        if f_slow <= f_fast:
+            st.error("SMA slow must be greater than SMA fast — nothing saved.")
+        else:
+            save_config({
+                "watchlist": new_watch,
+                "paper": {"starting_cash": int(f_cash), "max_position_pct": round(f_maxpos / 100, 4)},
+                "signals": {
+                    "sma_fast": int(f_fast), "sma_slow": int(f_slow), "rsi_period": int(f_rsi),
+                    "buy_threshold": int(f_buy), "sell_threshold": int(f_sell),
+                    "weights": {"trend": f_wt, "momentum": f_wm, "rsi": f_wr, "sentiment": f_ws},
+                },
+                "data": {"lookback_days": int(f_lookback), "auto_download": bool(f_auto)},
+                "news": {"max_articles": int(f_maxart)},
+                "screener": {"max_tickers": int(f_maxtick)},
+            })
+            st.cache_data.clear()
+            if abs(wsum - 1.0) > 0.01:
+                st.warning(f"Saved — heads up: your weights sum to {wsum:.2f}, not 1.0. Scores still work but are scaled by that total.")
+            st.success("Settings saved to config.yaml. Reloading…")
+            st.rerun()
+
+    st.info(
+        "Changing **starting cash** updates your P&L baseline immediately, but your current "
+        "cash balance only changes when you click **Reset paper account** on the Portfolio tab.",
+        icon="💡",
+    )
+
+    st.divider()
+    st.markdown(f"**Mode:** `{cfg.get('mode', 'paper')}` — live trading is intentionally disabled.")
     if cfg.get("mode") == "live":
         st.error("Live mode is not implemented. Running safely in paper mode.")
-    st.markdown(
-        "Edit **`config.yaml`** to change your watchlist, the signal weights, "
-        "buy/sell thresholds, and the news/sentiment providers, then re-run the app."
-    )
-    st.json(cfg)
+    with st.expander("View raw config.yaml"):
+        st.json(cfg)
