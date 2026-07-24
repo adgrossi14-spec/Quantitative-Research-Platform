@@ -54,3 +54,95 @@ Needs columns: Date, Open, High, Low, Close, Volume. Manual files override downl
 - [ ] Finnhub news integration (toggle ready in config)
 - [ ] Optional Claude-powered sentiment
 - [ ] Live trading mode (intentionally disabled for now)
+
+
+Tech Stack:
+ Language & Environment
+
+  ┌────────────────────────────┬───────────────────────────────────────────────────┐
+  │         Technology         │                       Role                        │
+  ├────────────────────────────┼───────────────────────────────────────────────────┤
+  │ Python 3.12                │ The language the entire application is written in │
+  ├────────────────────────────┼───────────────────────────────────────────────────┤
+  │ venv (virtual environment) │ Isolated, self-contained dependency environment   │
+  ├────────────────────────────┼───────────────────────────────────────────────────┤
+  │ pip                        │ Package installer (pulls the libraries below)     │
+  └────────────────────────────┴───────────────────────────────────────────────────┘
+
+  Web Interface / Frontend
+
+  ┌────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ Technology │                                                Role                                                 │
+  ├────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ Streamlit  │ Turns Python into the interactive browser dashboard — all six tabs, buttons, charts, tables. No     │
+  │            │ HTML/CSS/JavaScript written by hand. Also runs the local web server.                                │
+  └────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  Data Processing & Math
+
+  ┌────────────┬────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ Technology │                                              Role                                              │
+  ├────────────┼────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ pandas     │ Core data engine — loads price history, computes indicators, powers the screener tables        │
+  ├────────────┼────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ NumPy      │ Numerical library underneath pandas; used in the indicator math (e.g. Relative Strength Index) │
+  └────────────┴────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  Data Sources & Fetching (all free)
+
+  ┌────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ Technology │                                                Role                                                 │
+  ├────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ yfinance   │ Downloads daily stock & index prices from Yahoo Finance (no key needed)                             │
+  ├────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ feedparser │ Reads free news headline feeds (RSS) from Yahoo Finance & Google News                               │
+  ├────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ requests   │ Direct web calls for the screener's stock universe (Nasdaq Trader directory) and sector/market-cap  │
+  │            │ data (NASDAQ screener API)                                                                          │
+  └────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  Analysis / "Intelligence"
+
+  ┌────────────────────┬────────────────────────────────────────────────────────────────────────────────────────────┐
+  │     Technology     │                                            Role                                            │
+  ├────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ vaderSentiment     │ Free, offline tool that scores news headlines as positive/negative — no paid AI, no        │
+  │ (VADER)            │ per-use cost                                                                               │
+  ├────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ Custom scoring     │ Hand-written Python (src/signals.py) blending trend, momentum, relative strength &         │
+  │ model              │ sentiment — a transparent formula, not machine learning                                    │
+  └────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  Configuration
+
+  ┌─────────────┬───────────────────────────────────────────────────────────────────────────┐
+  │ Technology  │                                   Role                                    │
+  ├─────────────┼───────────────────────────────────────────────────────────────────────────┤
+  │ PyYAML      │ Reads your config.yaml settings                                           │
+  ├─────────────┼───────────────────────────────────────────────────────────────────────────┤
+  │ ruamel.yaml │ Writes settings back from the Settings tab while preserving your comments │
+  └─────────────┴───────────────────────────────────────────────────────────────────────────┘
+
+  Storage (deliberately no database)
+
+  ┌────────────┬─────────────────────────────────────────────────────────────┐
+  │ Technology │                            Role                             │
+  ├────────────┼─────────────────────────────────────────────────────────────┤
+  │ JSON files │ Your paper-trading account state (state/paper_account.json) │
+  ├────────────┼─────────────────────────────────────────────────────────────┤
+  │ CSV files  │ Cached prices, screener results, ticker universe (in data/) │
+  └────────────┴─────────────────────────────────────────────────────────────┘
+
+  Tooling & Distribution
+
+  ┌────────────────────────┬───────────────────────────────────────────────────────────────────────────┐
+  │       Technology       │                                   Role                                    │
+  ├────────────────────────┼───────────────────────────────────────────────────────────────────────────┤
+  │ Git & GitHub           │ Version control; hosted at adgrossi14-spec/Quantitative-Research-Platform │
+  ├────────────────────────┼───────────────────────────────────────────────────────────────────────────┤
+  │ Git LFS                │ Available for large files (installed on your machine)                     │
+  ├────────────────────────┼───────────────────────────────────────────────────────────────────────────┤
+  │ Batch script (run.bat) │ One-click launcher for Windows                                            │
+  ├────────────────────────┼───────────────────────────────────────────────────────────────────────────┤
+  │ Claude Code            │ AI pair-programmer used to build it                                       │
+  └────────────────────────┴───────────────────────────────────────────────────────────────────────────┘
